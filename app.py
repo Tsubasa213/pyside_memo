@@ -1,76 +1,136 @@
 import os
-from PySide6.QtWidgets import QMainWindow, QTextEdit, QFileDialog, QApplication, QMessageBox
-from PySide6.QtGui import QAction, QKeySequence
+import json
+from PySide6.QtWidgets import (QMainWindow, QTextEdit, QLineEdit, QVBoxLayout, QHBoxLayout,
+                               QWidget, QPushButton, QApplication, QMessageBox,
+                               QFileDialog)
+from PySide6.QtGui import QRegularExpressionValidator
+from PySide6.QtCore import QRegularExpression
+
+CONFIG_FILE = 'notepad_config.json'
 
 class Notepad(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.note_path = None
+        self.loadConfig()
         self.initUI()
 
+    def loadConfig(self):
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r') as file:
+                config = json.load(file)
+                self.note_path = config.get('note_path')
+        else:
+            self.note_path = None
+
+    def saveConfig(self):
+        with open(CONFIG_FILE, 'w') as file:
+            json.dump({'note_path': self.note_path}, file)
+
     def initUI(self):
-        self.textEdit = QTextEdit()
-        self.setCentralWidget(self.textEdit)
-        self.createActions()
-        self.createMenus()
-        self.setWindowTitle('Simple Notepad')
+        self.setWindowTitle('メモ帳')
         self.setGeometry(100, 100, 800, 600)
 
-    def createActions(self):
-        self.newAction = QAction('&New', self)
-        self.newAction.setShortcut(QKeySequence.New)
-        self.newAction.setStatusTip('Create a new document')
-        self.newAction.triggered.connect(self.newFile)
+        self.textEdit = QTextEdit()
 
-        self.openAction = QAction('&Open...', self)
-        self.openAction.setShortcut(QKeySequence.Open)
-        self.openAction.setStatusTip('Open an existing document')
-        self.openAction.triggered.connect(self.openFile)
+        # ファイル名を入力するテキストボックスを作成
+        self.fileNameEdit = QLineEdit()
+        self.fileNameEdit.setPlaceholderText('ファイル名(.txtを除く)')  # プレースホルダーテキストを設定
+        # 半角英数字のみを受け入れるバリデータを設定
+        regex = QRegularExpression("^[a-zA-Z0-9]*$")
+        validator = QRegularExpressionValidator(regex)
+        self.fileNameEdit.setValidator(validator)
 
-        self.saveAction = QAction('&Save', self)
-        self.saveAction.setShortcut(QKeySequence.Save)
-        self.saveAction.setStatusTip('Save the document to disk')
-        self.saveAction.triggered.connect(self.saveFile)
+        # ボタンを作成
+        self.newButton = QPushButton('新規(&N)')
+        self.newButton.clicked.connect(self.newFile)
 
-        self.exitAction = QAction('E&xit', self)
-        self.exitAction.setShortcut('Ctrl+Q')
-        self.exitAction.setStatusTip('Exit application')
-        self.exitAction.triggered.connect(self.close)
+        self.openButton = QPushButton('開く(&O)...')
+        self.openButton.clicked.connect(self.openFile)
 
-    def createMenus(self):
-        menuBar = self.menuBar()
-        fileMenu = menuBar.addMenu('&File')
-        fileMenu.addAction(self.newAction)
-        fileMenu.addAction(self.openAction)
-        fileMenu.addAction(self.saveAction)
-        fileMenu.addSeparator()
-        fileMenu.addAction(self.exitAction)
+        self.saveButton = QPushButton('保存(&S)')
+        self.saveButton.clicked.connect(self.saveFile)
+
+        self.exitButton = QPushButton('終了(&X)')
+        self.exitButton.clicked.connect(self.close)
+
+        # ボタンのレイアウトを作成
+        buttonLayout = QHBoxLayout()
+        buttonLayout.addWidget(self.newButton)
+        buttonLayout.addWidget(self.openButton)
+        buttonLayout.addWidget(self.saveButton)
+        buttonLayout.addStretch()
+        buttonLayout.addWidget(self.exitButton)
+
+        # メインレイアウトを作成
+        mainLayout = QVBoxLayout()
+        mainLayout.addLayout(buttonLayout)
+        mainLayout.addWidget(self.fileNameEdit)
+        mainLayout.addWidget(self.textEdit)
+
+        container = QWidget()
+        container.setLayout(mainLayout)
+        self.setCentralWidget(container)
 
     def newFile(self):
         self.textEdit.clear()
 
     def openFile(self):
-        desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
+        if not self.note_path:
+            self.note_path = QFileDialog.getExistingDirectory(self, '保存場所を選択')
+            if not self.note_path:
+                return  # User cancelled the dialog
+            self.saveConfig()
+
         options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getOpenFileName(self, 'Open File', desktop_path,
-                                                  'Text Files (*.txt);;All Files (*)', options=options)
+        fileName, _ = QFileDialog.getOpenFileName(self, 'ファイルを開く', self.note_path,
+                                                  'テキストファイル (*.txt);;すべてのファイル (*)', options=options)
         if fileName:
-            with open(fileName, 'r') as file:
+            with open(fileName, 'r', encoding='utf-8') as file:
                 self.textEdit.setText(file.read())
 
     def saveFile(self):
-        desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
-        options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getSaveFileName(self, 'Save File', desktop_path,
-                                                  'Text Files (*.txt)', options=options)
-        if fileName:
-            if not fileName.lower().endswith('.txt'):
-                fileName += '.txt'  # ファイル名に.txtを追加
-            with open(fileName, 'w') as file:
+        if not self.note_path:
+            self.note_path = QFileDialog.getExistingDirectory(self, '保存場所を選択')
+            if not self.note_path:
+                return  # User cancelled the dialog
+            self.saveConfig()
+
+        fileName = self.fileNameEdit.text()
+        if not fileName:
+            QMessageBox.warning(self, '警告', 'ファイル名を入力してください。')
+            return
+        if not fileName.lower().endswith('.txt'):
+            fileName += '.txt'
+        filePath = os.path.join(self.note_path, fileName)
+
+        # ディレクトリが存在するか確認し、存在しなければ作成する
+        if not os.path.isdir(self.note_path):
+            try:
+                os.makedirs(self.note_path)
+            except OSError as e:
+                QMessageBox.warning(self, '保存エラー', f'ディレクトリの作成に失敗しました。\nエラー: {e}')
+                return
+
+        # すでに同じ名前のファイルが存在するか確認する
+        if os.path.exists(filePath):
+            reply = QMessageBox.question(self, 'ファイルの上書き確認',
+                                         "すでに同じ名前のファイルが存在します。上書きしますか?",
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
+
+        # ファイルの保存処理
+        try:
+            with open(filePath, 'w', encoding='utf-8') as file:
                 file.write(self.textEdit.toPlainText())
+            QMessageBox.information(self, '情報', 'ファイルが正常に保存されました。')
+        except IOError as e:
+            QMessageBox.warning(self, '保存エラー', f'ファイルを保存できませんでした。\nエラー: {e}')
 
     def closeEvent(self, event):
-        reply = QMessageBox.question(self, 'Message',
-                                     "Are you sure you want to quit?", QMessageBox.Yes |
+        reply = QMessageBox.question(self, 'メッセージ',
+                                     "本当に終了しますか？", QMessageBox.Yes |
                                      QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
