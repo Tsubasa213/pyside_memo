@@ -33,15 +33,12 @@ class Notepad(QMainWindow):
 
         self.textEdit = QTextEdit()
 
-        # ファイル名を入力するテキストボックスを作成
         self.fileNameEdit = QLineEdit()
-        self.fileNameEdit.setPlaceholderText('ファイル名(.txtを除く)')  # プレースホルダーテキストを設定
-        # 半角英数字のみを受け入れるバリデータを設定
+        self.fileNameEdit.setPlaceholderText('ファイル名(.txtを除く)')
         regex = QRegularExpression("^[a-zA-Z0-9]*$")
         validator = QRegularExpressionValidator(regex)
         self.fileNameEdit.setValidator(validator)
 
-        # ボタンを作成
         self.newButton = QPushButton('新規(&N)')
         self.newButton.clicked.connect(self.newFile)
 
@@ -51,18 +48,20 @@ class Notepad(QMainWindow):
         self.saveButton = QPushButton('保存(&S)')
         self.saveButton.clicked.connect(self.saveFile)
 
+        self.mailTemplateButton = QPushButton('メールテンプレ')
+        self.mailTemplateButton.clicked.connect(self.insertMailTemplate)
+
         self.exitButton = QPushButton('終了(&X)')
         self.exitButton.clicked.connect(self.close)
 
-        # ボタンのレイアウトを作成
         buttonLayout = QHBoxLayout()
         buttonLayout.addWidget(self.newButton)
         buttonLayout.addWidget(self.openButton)
         buttonLayout.addWidget(self.saveButton)
+        buttonLayout.addWidget(self.mailTemplateButton)
         buttonLayout.addStretch()
         buttonLayout.addWidget(self.exitButton)
 
-        # メインレイアウトを作成
         mainLayout = QVBoxLayout()
         mainLayout.addLayout(buttonLayout)
         mainLayout.addWidget(self.fileNameEdit)
@@ -104,7 +103,6 @@ class Notepad(QMainWindow):
             fileName += '.txt'
         filePath = os.path.join(self.note_path, fileName)
 
-        # ディレクトリが存在するか確認し、存在しなければ作成する
         if not os.path.isdir(self.note_path):
             try:
                 os.makedirs(self.note_path)
@@ -112,7 +110,6 @@ class Notepad(QMainWindow):
                 QMessageBox.warning(self, '保存エラー', f'ディレクトリの作成に失敗しました。\nエラー: {e}')
                 return
 
-        # すでに同じ名前のファイルが存在するか確認する
         if os.path.exists(filePath):
             reply = QMessageBox.question(self, 'ファイルの上書き確認',
                                          "すでに同じ名前のファイルが存在します。上書きしますか?",
@@ -120,7 +117,6 @@ class Notepad(QMainWindow):
             if reply == QMessageBox.No:
                 return
 
-        # ファイルの保存処理
         try:
             with open(filePath, 'w', encoding='utf-8') as file:
                 file.write(self.textEdit.toPlainText())
@@ -128,8 +124,17 @@ class Notepad(QMainWindow):
         except IOError as e:
             QMessageBox.warning(self, '保存エラー', f'ファイルを保存できませんでした。\nエラー: {e}')
 
+    def insertMailTemplate(self):
+        template = """○○先生
+
+いつもお世話になっています。〇年〇コースの○○です。
+本日は～について連絡させていただきました。
+
+ご迷惑おかけしますがよろしくお願いいたします。"""
+        self.textEdit.insertPlainText(template)
+
     def closeEvent(self, event):
-        reply = QMessageBox.question(self, 'メッセージ',
+        reply = QMessageBox.question(self, '終了',
                                      "本当に終了しますか？", QMessageBox.Yes |
                                      QMessageBox.No, QMessageBox.No)
 
