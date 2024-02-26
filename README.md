@@ -10,7 +10,7 @@
 
 ## 前提条件
 Pythonがインストールされている必要があります。
-PySide6ライブラリが必要です。requirements.txtを使い、インストールしてください。
+PySide6ライブラリが必要です。`requirements.txt`を使い、インストールしてください。
 
 
 ## 実行方法
